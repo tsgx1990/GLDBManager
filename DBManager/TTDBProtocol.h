@@ -9,27 +9,28 @@
 #import <Foundation/Foundation.h>
 #import "NSString+SQLFormat.h"
 
-#define kDBForeignKey     @"_key__foreign_db__xxtt_"
-
 @protocol TTDBProtocol <NSObject>
 
 @required
-+ (NSArray*)concernedColumns; // 需要存储的字段
++ (NSArray*)ttdb_concernedColumns; // 需要存储的字段
 
-+ (NSArray*)conformDBProtocolColumns; // 遵循TTDBProtocol的字段，包括数组属性
++ (NSArray*)ttdb_conformDBProtocolColumns; // 遵循TTDBProtocol的字段，包括数组属性
 
-+ (Class)innerClassForPropertyName:(NSString*)propertyName;
++ (Class)ttdb_innerClassForPropertyName:(NSString*)propertyName;
 
-- (NSString*)sqlCreatingTable; // 创建表的sql
-- (NSString*)sqlInsertingData; // 插入数据的sql
+- (NSString*)ttdb_sqlCreatingTable; // 创建表的sql
+- (NSString*)ttdb_sqlInsertingData; // 插入数据的sql
 
 
 @optional
 
-// 涉及到外键，由subModel实现
-- (NSString*)sqlInsertingDataWithSuperModel:(id<TTDBProtocol>)superModel;
+// 涉及到外键时，由childTable对应的model类实现
+- (NSString*)ttdb_sqlInsertingDataWithSuperModel:(id<TTDBProtocol>)superModel;
 
-// 由superModel实现
-+ (NSString*)keyAsSubtableForeignKey;
+// 由parentTable对应的model类实现
++ (NSArray*)ttdb_primaryKeys;
+
+// 由childTable对应的model类实现
++ (NSArray*)ttdb_foreignKeys;
 
 @end

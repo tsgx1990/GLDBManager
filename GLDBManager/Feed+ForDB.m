@@ -10,17 +10,17 @@
 
 @implementation Feed (ForDB)
 
-+ (NSArray *)concernedColumns
++ (NSArray *)ttdb_concernedColumns
 {
-    return @[@"itemId", @"title", @"itemType", @"infooo", @"rsses"];
+    return @[@"id", @"itemId", @"title", @"itemType", @"infooo", @"rsses"];
 }
 
-+ (NSArray *)conformDBProtocolColumns
++ (NSArray *)ttdb_conformDBProtocolColumns
 {
     return @[@"infooo", @"rsses"];
 }
 
-+ (Class)innerClassForPropertyName:(NSString *)propertyName
++ (Class)ttdb_innerClassForPropertyName:(NSString *)propertyName
 {
     if ([propertyName isEqualToString:@"infooo"]) {
         return [Info class];
@@ -33,81 +33,85 @@
     }
 }
 
-- (NSString *)sqlCreatingTable
+- (NSString *)ttdb_sqlCreatingTable
 {
     NSString* sql = [NSString stringWithFormat:@"create table if not exists %@ \
                      ( \
+                     %@        integer, \
+                     %@        integer, \
                      %@        text, \
-                     %@        text, \
-                     primary key(%@) \
+                     primary key(%@, %@) \
                      )",
                      NSStringFromClass([self class]),
+                     @"id",
                      @"itemId",
                      @"title",
-                     @"itemId"];
+                     @"itemId", @"id"];
     return sql;
 }
 
-- (NSString *)sqlInsertingData
+- (NSString *)ttdb_sqlInsertingData
 {
     NSString* sql = [NSString emptyStringWithFormat:@"replace into %@ \
-                     (%@, %@) values \
-                     ('%@', '%@')",
+                     (%@, %@, %@) values \
+                     ('%@', '%@', '%@')",
                      NSStringFromClass([self class]),
-                     @"itemId", @"title",
-                     self.itemId, self.title];
+                     @"itemId", @"title", @"id",
+                     self.itemId, self.title, self.id];
     return sql;
 }
 
-+ (NSString *)keyAsSubtableForeignKey
++ (NSArray *)ttdb_primaryKeys
 {
-    return @"itemId";
+    return @[@"itemId", @"id"];
 }
 
 @end
 
 @implementation Rss (ForDB)
 
-+ (NSArray *)concernedColumns
++ (NSArray *)ttdb_concernedColumns
 {
     return @[@"rssId", @"title", @"content"];
 }
 
-+ (NSArray *)conformDBProtocolColumns
++ (NSArray *)ttdb_conformDBProtocolColumns
 {
     return nil;
 }
 
-+ (Class)innerClassForPropertyName:(NSString *)propertyName
++ (Class)ttdb_innerClassForPropertyName:(NSString *)propertyName
 {
     return nil;
 }
 
-- (NSString *)sqlCreatingTable
+- (NSString *)ttdb_sqlCreatingTable
 {
+    NSString* foreignKey0 = [self.class ttdb_foreignKeys][0];
+    NSString* foreignKey1 = [self.class ttdb_foreignKeys][1];
     NSString* sql = [NSString stringWithFormat:@"create table if not exists %@ \
                      ( \
                      %@        text, \
                      %@        text, \
                      %@        text, \
-                     %@        text, \
+                     %@        integer, %@        integer, \
                      primary key(%@) \
-                     CONSTRAINT %@ foreign key(%@) references %@(%@) on delete cascade on update cascade \
+                     CONSTRAINT %@ foreign key(%@, %@) references %@(%@, %@) on delete cascade on update cascade \
                      )",
                      NSStringFromClass([self class]),
                      @"rssId",
                      @"title",
                      @"content",
-                     kDBForeignKey,
+                     foreignKey0, foreignKey1,
                      @"rssId",
                      @"Feed",
-                     kDBForeignKey,
+                     foreignKey0, foreignKey1,
                      @"Feed",
-                     @"itemId"];
+                     @"itemId", @"id"];
     return sql;
 }
 
-- (NSString *)sqlInsertingData
+- (NSString *)ttdb_sqlInsertingData
 {
     NSString* sql = [NSString emptyStringWithFormat:@"replace into %@ \
                      (%@, %@, %@) values \
@@ -118,15 +122,23 @@
     return sql;
 }
 
-- (NSString*)sqlInsertingDataWithSuperModel:(Feed*)superModel
+- (NSString*)ttdb_sqlInsertingDataWithSuperModel:(Feed*)superModel
 {
+    NSString* foreignKey0 = [self.class ttdb_foreignKeys][0];
+    NSString* foreignKey1 = [self.class ttdb_foreignKeys][1];
+    
     NSString* sql = [NSString emptyStringWithFormat:@"replace into %@ \
-                     (%@, %@, %@, %@) values \
-                     ('%@', '%@', '%@', '%@')",
+                     (%@, %@, %@, %@, %@) values \
+                     ('%@', '%@', '%@', '%@', '%@')",
                      NSStringFromClass([self class]),
-                     kDBForeignKey, @"rssId", @"title", @"content",
-                     superModel.itemId, self.rssId, self.title, self.content];
+                     foreignKey0, foreignKey1, @"rssId", @"title", @"content",
+                     superModel.itemId, superModel.id, self.rssId, self.title, self.content];
     return sql;
+}
+
++ (NSArray *)ttdb_foreignKeys
+{
+    return @[@"ttdb_Feed_itemId", @"ttdb_Feed_id"];
 }
 
 @end
@@ -134,48 +146,51 @@
 
 @implementation Info (ForDB)
 
-+ (NSArray *)concernedColumns
++ (NSArray *)ttdb_concernedColumns
 {
     return @[@"id", @"name", @"age", @"height"];
 }
 
-+ (NSArray *)conformDBProtocolColumns
++ (NSArray *)ttdb_conformDBProtocolColumns
 {
     return nil;
 }
 
-+ (Class)innerClassForPropertyName:(NSString *)propertyName
++ (Class)ttdb_innerClassForPropertyName:(NSString *)propertyName
 {
     return nil;
 }
 
-- (NSString *)sqlCreatingTable
+- (NSString *)ttdb_sqlCreatingTable
 {
+    NSString* foreignKey0 = [self.class ttdb_foreignKeys][0];
+    NSString* foreignKey1 = [self.class ttdb_foreignKeys][1];
+    
     NSString* sql = [NSString stringWithFormat:@"create table if not exists %@ \
                      ( \
                      %@        text, \
                      %@        text, \
                      %@        text, \
                      %@        text, \
-                     %@        text, \
+                     %@        integer, %@        integer, \
                      primary key(%@) \
-                     CONSTRAINT %@ foreign key(%@) references %@(%@) on delete cascade on update cascade \
+                     CONSTRAINT %@ foreign key(%@, %@) references %@(%@, %@) on delete cascade on update cascade \
                      )",
                      NSStringFromClass([self class]),
                      @"id",
                      @"name",
                      @"age",
                      @"height",
-                     kDBForeignKey,
+                     foreignKey0, foreignKey1,
                      @"id",
                      @"Feed",
-                     kDBForeignKey,
+                     foreignKey0, foreignKey1,
                      @"Feed",
-                     @"itemId"];
+                     @"itemId", @"id"];
     return sql;
 }
 
-- (NSString *)sqlInsertingData
+- (NSString *)ttdb_sqlInsertingData
 {
     NSString* sql = [NSString emptyStringWithFormat:@"replace into %@ \
                      (%@, %@, %@, %@) values \
@@ -186,15 +201,23 @@
     return sql;
 }
 
-- (NSString *)sqlInsertingDataWithSuperModel:(Feed*)superModel
+- (NSString *)ttdb_sqlInsertingDataWithSuperModel:(Feed*)superModel
 {
+    NSString* foreignKey0 = [self.class ttdb_foreignKeys][0];
+    NSString* foreignKey1 = [self.class ttdb_foreignKeys][1];
+    
     NSString* sql = [NSString emptyStringWithFormat:@"replace into %@ \
-                     (%@, %@, %@, %@, %@) values \
-                     ('%@', '%lld', '%@', '%@', '%f')",
+                     (%@, %@, %@, %@, %@, %@) values \
+                     ('%@', '%@', '%lld', '%@', '%@', '%f')",
                      NSStringFromClass([self class]),
-                     kDBForeignKey, @"id", @"name", @"age", @"height",
-                     superModel.itemId, self.id, self.name, self.age, self.height];
+                     foreignKey0, foreignKey1, @"id", @"name", @"age", @"height",
+                     superModel.itemId, superModel.id, self.id, self.name, self.age, self.height];
     return sql;
+}
+
++ (NSArray *)ttdb_foreignKeys
+{
+    return @[@"ttdb_Feed_itemId", @"ttdb_Feed_id"];
 }
 
 @end

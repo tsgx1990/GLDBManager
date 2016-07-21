@@ -6,9 +6,12 @@
 //  Copyright © 2016年 bjhl. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 @interface NSString (SQLFormat)
+
+
+- (CGSize)sizeValue;
 
 /**
  *  字符串格式化，如果参数为nil时，在格式化过程中显示为空字符串@""

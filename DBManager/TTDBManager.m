@@ -44,7 +44,6 @@ static TTDBManager* shareDBManager = nil;
     if (self = [super init]) {
         NSString* docPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
         NSString *dbPath = [NSString stringWithFormat:@"%@/xxtt_content.db", docPath];
-//        NSString* dbPath = @"/Users/lgl/Desktop/content";
         NSLog(@"dbPath:%@", dbPath);
         self.dbQueue = [FMDatabaseQueue databaseQueueWithPath:dbPath];
     }
@@ -233,20 +232,21 @@ static TTDBManager* shareDBManager = nil;
         return nil;
     }
     
-    if (!concernedColumns.count) {
-        concernedColumns = [dataClass concernedColumns];
+    NSInteger originConcernedCount = concernedColumns.count;
+    if (originConcernedCount < 1) {
+        concernedColumns = [dataClass ttdb_concernedColumns];
     }
     NSArray* unExistedColumns = nil;
     NSArray* existedColumns = [self existedColumnsInTable:tableName fromConcernedColumns:concernedColumns unexistedColumns:&unExistedColumns];
     
     // 如果有子表，则需要添加作为子表外键的column
-    if ([dataClass respondsToSelector:@selector(keyAsSubtableForeignKey)]) {
+    if ([dataClass respondsToSelector:@selector(ttdb_primaryKeys)]) {
         NSMutableSet* mSet = [NSMutableSet setWithArray:existedColumns];
-        [mSet addObject:[dataClass keyAsSubtableForeignKey]];
+        [mSet addObjectsFromArray:[dataClass ttdb_primaryKeys]];
         existedColumns = mSet.allObjects;
     }
     
-    NSString* existedColumsStr = existedColumns.count ? [existedColumns componentsJoinedByString:@","] : @"*";
+    NSString* existedColumsStr = existedColumns.count && originConcernedCount>0 ? [existedColumns componentsJoinedByString:@","] : @"*";
     NSString* querySql = [NSString stringWithFormat:@"select %@ from %@", existedColumsStr, tableName];
     querySql = [self sqlByAddingCondition:condition toSql:querySql];
     
@@ -329,18 +329,24 @@ static TTDBManager* shareDBManager = nil;
     if (!toSql.length) {
         return @"";
     }
-    
-    NSString* finalSql = nil;
     if (!condition.length) {
-        finalSql = toSql;
+        return toSql;
     }
-    else if ([condition hasPrefix:@"where"]) {
-        finalSql = [toSql stringByAppendingFormat:@" %@", condition];
-    }
-    else {
-        finalSql = [toSql stringByAppendingFormat:@" where %@", condition];
-    }
+    
+    NSString* finalSql = [toSql stringByAppendingFormat:@" %@", condition];
     return finalSql;
+    
+//    NSString* finalSql = nil;
+//    if (!condition.length) {
+//        finalSql = toSql;
+//    }
+//    else if ([condition hasPrefix:@"where"]) {
+//        finalSql = [toSql stringByAppendingFormat:@" %@", condition];
+//    }
+//    else {
+//        finalSql = [toSql stringByAppendingFormat:@" where %@", condition];
+//    }
+//    return finalSql;
 }
 
 - (void)completeModelArray:(NSArray*)modelArray withColumns:(NSArray*)columns
@@ -352,7 +358,7 @@ static TTDBManager* shareDBManager = nil;
     for (NSObject<TTDBProtocol>* model in modelArray) {
         for (NSString* column in columns) {
             
-            NSArray* conformDBColumns = [model.class conformDBProtocolColumns];
+            NSArray* conformDBColumns = [model.class ttdb_conformDBProtocolColumns];
             if (![conformDBColumns containsObject:column]) {
                 continue;
             }
@@ -362,27 +368,16 @@ static TTDBManager* shareDBManager = nil;
                 continue;
             }
             
-            NSString* superForeignKey = [model.class keyAsSubtableForeignKey];
-            NSString* valueForForeignKey = nil;
-            if ([model respondsToSelector:NSSelectorFromString(superForeignKey)]) {
-                valueForForeignKey = [model valueForKey:superForeignKey];
-            }
-            
-            if (!valueForForeignKey) {
-                continue;
-            }
-            
-            NSString* condition = [NSString stringWithFormat:@"%@='%@'", kDBForeignKey, valueForForeignKey];
             if ([propertyClass isSubclassOfClass:[NSArray class]]) {
                 
-                Class innerClass = [model.class innerClassForPropertyName:column];
+                Class innerClass = [model.class ttdb_innerClassForPropertyName:column];
                 if (innerClass) {
-                    NSArray* innerModels = [self queryFromDataClass:innerClass where:condition];
+                    NSArray* innerModels = [self innerModelsWithOuterModel:model andInnerClass:innerClass];
                     [model setValue:innerModels forKey:column];
                 }
             }
             else if ([propertyClass conformsToProtocol:@protocol(TTDBProtocol)]) {
-                NSArray* innerModels = [self queryFromDataClass:propertyClass where:condition];
+                NSArray* innerModels = [self innerModelsWithOuterModel:model andInnerClass:propertyClass];
                 [model setValue:innerModels.firstObject forKey:column];
             }
             else  {
@@ -390,6 +385,27 @@ static TTDBManager* shareDBManager = nil;
             }
         }
     }
+}
+
+- (NSArray*)innerModelsWithOuterModel:(NSObject<TTDBProtocol>*)outerModel andInnerClass:(Class)innerClass
+{
+    NSArray* primaryKeys = [outerModel.class ttdb_primaryKeys];
+    NSArray* foreignKeys = [innerClass ttdb_foreignKeys];
+    assert(primaryKeys.count == foreignKeys.count);
+    
+    NSMutableArray* mConditions = [NSMutableArray arrayWithCapacity:primaryKeys.count];
+    for (int i=0; i<primaryKeys.count; i++) {
+        NSString* pKey = primaryKeys[i];
+        NSString* fKey = foreignKeys[i];
+        
+        id valueOfPKey = [outerModel valueForKey:pKey];
+        NSString* conditionStr = [NSString stringWithFormat:@"%@='%@'", fKey, valueOfPKey];
+        [mConditions addObject:conditionStr];
+    }
+    
+    NSString* totalCondition = [@"where " stringByAppendingString:[mConditions componentsJoinedByString:@" and "]];
+    NSArray* innerModels = [self queryFromDataClass:innerClass where:totalCondition];
+    return innerModels;
 }
 
 - (Class)propertyClassOfModel:(NSObject*)model forPropertyName:(NSString*)propertyName
@@ -493,7 +509,7 @@ static TTDBManager* shareDBManager = nil;
     }
     
     // 检测conformDB字段的类型，并选择相应的存储方式
-    NSArray* conformDBColumns = [[data class] conformDBProtocolColumns];
+    NSArray* conformDBColumns = [[data class] ttdb_conformDBProtocolColumns];
     for (NSString* column in conformDBColumns) {
         
         id columnValue = [data valueForKey:column];
@@ -516,10 +532,10 @@ static TTDBManager* shareDBManager = nil;
     // 插入数据
     BOOL insertSucess = NO;
     if (superModel) {
-        insertSucess = [db executeStatements:[data sqlInsertingDataWithSuperModel:superModel]];
+        insertSucess = [db executeStatements:[data ttdb_sqlInsertingDataWithSuperModel:superModel]];
     }
     else {
-        insertSucess = [db executeStatements:data.sqlInsertingData];
+        insertSucess = [db executeStatements:data.ttdb_sqlInsertingData];
     }
     return insertSucess;
 }
@@ -527,7 +543,7 @@ static TTDBManager* shareDBManager = nil;
 - (BOOL)createTableWithData:(id<TTDBProtocol>)data withDB:(FMDatabase*)db
 {
     if (![db tableExists:NSStringFromClass([data class])]) {
-        if ([db executeStatements:data.sqlCreatingTable]) {
+        if ([db executeStatements:data.ttdb_sqlCreatingTable]) {
             return [self addColumsIfNeededWithData:data withDB:db];
         }
         else {
@@ -557,15 +573,15 @@ static TTDBManager* shareDBManager = nil;
             // 如果表存在，则判断表中是否有全部所需字段，如果没有则添加，只需要执行一次即可
             
             BOOL shouldAddToTableSet = YES;
-            NSMutableSet* allConcernedColumns = [NSMutableSet setWithArray:[[data class] concernedColumns]];
+            NSMutableSet* allConcernedColumns = [NSMutableSet setWithArray:[[data class] ttdb_concernedColumns]];
             // 判断为关联表子表，则添加外键字段
-            if ([data respondsToSelector:@selector(sqlInsertingDataWithSuperModel:)]) {
+            if ([data respondsToSelector:@selector(ttdb_sqlInsertingDataWithSuperModel:)]) {
                 
-                if ([data sqlInsertingDataWithSuperModel:nil].length) {
-                    [allConcernedColumns addObject:kDBForeignKey];
+                if ([data ttdb_sqlInsertingDataWithSuperModel:nil].length) {
+                    [allConcernedColumns addObjectsFromArray:[data.class ttdb_foreignKeys]];
                 }
             }
-            NSSet* allConformDBColumns = [NSSet setWithArray:[[data class] conformDBProtocolColumns]];
+            NSSet* allConformDBColumns = [NSSet setWithArray:[[data class] ttdb_conformDBProtocolColumns]];
             
             for (NSString* columnStr in allConcernedColumns) {
                 

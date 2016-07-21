@@ -10,6 +10,12 @@
 
 @implementation NSString (SQLFormat)
 
+- (CGSize)sizeValue
+{
+    return CGSizeFromString(self);
+}
+
+
 + (NSString *)emptyStringWithFormat:(NSString *)format, ...
 {
     va_list argPtr;

@@ -12,6 +12,7 @@
 
 @interface Feed : NSObject
 
+@property (nonatomic, copy) NSString* id;
 @property (nonatomic, copy) NSString* itemId;
 @property (nonatomic, copy) NSString* title;
 
