@@ -575,11 +575,8 @@ static TTDBManager* shareDBManager = nil;
             BOOL shouldAddToTableSet = YES;
             NSMutableSet* allConcernedColumns = [NSMutableSet setWithArray:[[data class] ttdb_concernedColumns]];
             // 判断为关联表子表，则添加外键字段
-            if ([data respondsToSelector:@selector(ttdb_sqlInsertingDataWithSuperModel:)]) {
-                
-                if ([data ttdb_sqlInsertingDataWithSuperModel:nil].length) {
-                    [allConcernedColumns addObjectsFromArray:[data.class ttdb_foreignKeys]];
-                }
+            if ([data.class respondsToSelector:@selector(ttdb_foreignKeys)]) {
+                [allConcernedColumns addObjectsFromArray:[data.class ttdb_foreignKeys]];
             }
             NSSet* allConformDBColumns = [NSSet setWithArray:[[data class] ttdb_conformDBProtocolColumns]];
             
